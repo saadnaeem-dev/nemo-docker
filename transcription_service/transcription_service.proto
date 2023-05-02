@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package transcription;
+
+service TranscriptionService {
+    rpc TranscribeAudio (TranscriptionRequest) returns (TranscriptionResponse);
+}
+
+message TranscriptionRequest {
+    string model_path = 1;
+    string audio_directory_path = 2;
+    string model_name = 3;
+}
+
+message TranscriptionResponse {
+    string model_path = 1;
+    string audio_directory_path = 2;
+}
+// Complile Proto File: python -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. "transcription_service\\transcription_service.proto"
