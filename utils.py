@@ -6,6 +6,12 @@ import math
 import torch
 from nemo.core.classes import IterableDataset
 from torch.utils.data import DataLoader
+from itertools import groupby
+import language_tool_python
+# pip install pyspellchecker
+from spellchecker import SpellChecker
+
+
 
 def speech_collate_fn(batch):
     """collate batch of audio sig, audio len
@@ -177,7 +183,7 @@ class ChunkBufferDecoder:
         for pred in self.all_preds:
             ids, toks = self._greedy_decoder(pred, self.asr_model.tokenizer)
             decoded_frames.append(ids)
-            all_toks.append(toks)
+            all_toks.append(toks) # toks[0] contains un-merged sub-word units
 
         for decoded in decoded_frames:
             self.unmerged += decoded[len(decoded) - 1 - delay:len(decoded) - 1 - delay + self.n_tokens_per_chunk]
@@ -194,10 +200,16 @@ class ChunkBufferDecoder:
 
         if not merge:
             return self.unmerged
-        return self.greedy_merge(self.unmerged)
+        return self.greedy_merge(self.unmerged), self.merge_tokens(all_toks[0])
 
 
     def _greedy_decoder(self, preds, tokenizer):
+        """
+        Greedy decoder is fine
+        :param preds:
+        :param tokenizer:
+        :return:
+        """
         s = []
         ids = []
         for i in range(preds.shape[0]):
@@ -209,7 +221,7 @@ class ChunkBufferDecoder:
             ids.append(preds[i])
         return ids, s
 
-    def greedy_merge(self, preds):
+    def greedy_merge(self, preds: list):
         decoded_prediction = []
         previous = self.blank_id
         for p in preds:
@@ -219,3 +231,40 @@ class ChunkBufferDecoder:
         hypothesis = self.asr_model.tokenizer.ids_to_text(decoded_prediction)
         self.all_preds.pop(0)
         return hypothesis
+
+    def merge_tokens(self, un_merged_tokens: list):
+        """
+        Expensive but accurate
+        :param un_merged_tokens:
+        :return:
+        """
+        merged = ""
+        for key, group in groupby(un_merged_tokens):
+            if key.startswith('▁'):
+                merged += ' ' + key.replace('▁', '')
+            elif not key.startswith('_'):
+                merged += key
+        hypothesis = merged.strip()
+        return hypothesis
+
+
+def correct_text(text):
+    tool = language_tool_python.LanguageTool('en-US')
+    matches = tool.check(text)
+    corrected_text = language_tool_python.utils.correct(text, matches)
+    return corrected_text
+
+
+def correct_last_word(text):
+    words = text.split()
+    spell = SpellChecker()
+
+    # only check the last word
+    last_word = words[-1]
+    corrected_word = spell.correction(last_word)
+
+    # replace the last word with the corrected one
+    words[-1] = corrected_word
+
+    corrected_text = ' '.join(words)
+    return corrected_text
