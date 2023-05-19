@@ -5,6 +5,8 @@ import numpy as np
 import torch
 import nemo.collections.asr as nemo_asr
 from utils import ChunkBufferDecoder
+from utils import correct_last_word
+
 
 # Constants
 CHUNK_SIZE = 4096
@@ -48,6 +50,10 @@ def decode_g711_to_pcm(g711_data, chunk_size):
     process.stdout.close()
 
 
+
+
+
+
 # Read and transcribe streaming G.711 audio
 def transcribe_streaming_g711(model, stride, chunk_len_in_secs=1, buffer_len_in_secs=5):
     """
@@ -76,7 +82,9 @@ def transcribe_streaming_g711(model, stride, chunk_len_in_secs=1, buffer_len_in_
                     # buffers is a list of audio data chunks that the model will transcribe at a time.
                     buffers = [accumulated_audio]
                     transcription = chunk_decoder.transcribe_buffers(buffers)
-                    print(f"Transcription: {transcription}")
+                    print(f"Greedy Merge Transcription: {transcription[0]}")
+                    print(f"Custom Merge Tokens Transcription: {transcription[1]}")
+                    # print(f"Custom Merge Text + Corrected Transcription: {correct_last_word(transcription[1])}")
                     accumulated_audio = accumulated_audio[accumulated_samples:]
 
 
